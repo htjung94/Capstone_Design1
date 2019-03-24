@@ -1,82 +1,89 @@
 #include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-
-#define myPeriodic 60 //in sec | Thingspeak pub is 15sec
-#define ONE_WIRE_BUS 2  // DS18B20 on arduino pin2 corresponds to D4 on physical board
-
+#define ONE_WIRE_BUS D4
+// to be changed
+// the number that you connect with ds18b20
+// the number can be activated is case by case
 OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature DS18B20(&oneWire);
-float prevTemp = 0;
-const char* server = "api.thingspeak.com";
-String apiKey ="GAOH8SIZQTR1MWC8";
-const char* MY_SSID = "SK_WiFi76A1"; 
-const char* MY_PWD = "1402000968";
-int sent = 0;
+DallasTemperature sensors(&oneWire);
+String apiKey = "GAOH8SIZQTR1MWC8"; // to be changed
+ESP8266WiFiMulti WiFiMulti;
+
 void setup() {
   Serial.begin(115200);
-  connectWifi();
+  delay(10);
+
+  // to be changed
+  // We start by connecting to a WiFi network
+  // Wifi name and the password
+  WiFiMulti.addAP("SK_WiFi76A1", "1402000968");
+
+  Serial.println();
+  Serial.println();
+  Serial.print("Wait for WiFi... ");
+
+  while (WiFiMulti.run() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  delay(500);
+  Serial.println("Dallas Temperature");
+  sensors.begin();
+}
+  
+void senddata(int flag) {//implementing double connection in loop function was error
+  WiFiClient client;
+  sensors.requestTemperatures();
+  Serial.print("Temperature for Device 1 is: ");
+  String temp = String(sensors.getTempCByIndex(0));
+  Serial.println(temp);
+  delay(500);
+  const char * host; // ip or dns
+  String url;
+  uint16_t port;
+
+  if(flag==0){// sending data to thingspeak
+    host="api.thingspeak.com";
+    port = 80;
+    url = "/update?api_key=" + apiKey + "&field1=" + temp;
+  }
+  if(flag==1){// sending data to my server.
+      host = "18.219.233.123";//public ip of your server
+      port = 8000; // over 1000
+      url = "/log?temp=" + temp; 
+  }
+  if (!client.connect(host, port)) {
+    Serial.println("connection failed");
+    return;
+  }
+  if(flag==1) {
+    host = "http://18.219.233.123";// public ip of your server
+  }
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: " + host + "\r\n" +
+               "Connection: close\r\n\r\n");
+  Serial.println(host);
+  delay(1000); // should request after 15 seconds
 }
 
 void loop() {
-  float temp;
-  //char buffer[10];
-  DS18B20.requestTemperatures(); 
-  temp = DS18B20.getTempCByIndex(0);
-  //String tempC = dtostrf(temp, 4, 1, buffer);//handled in sendTemp()
-  Serial.print(String(sent)+" Temperature: ");
-  Serial.println(temp);
-  
-  //if (temp != prevTemp)
-  //{
-  //sendTeperatureTS(temp);
-  //prevTemp = temp;
-  //}
-  
-  sendTeperatureTS(temp);
-  int count = myPeriodic;
-  while(count--)
-  delay(1000);
-}
+  // make account on thingspeak
+  // write apikey of channel
 
-void connectWifi()
-{
-  Serial.print("Connecting to "+*MY_SSID);
-  WiFi.begin(MY_SSID, MY_PWD);
-  while (WiFi.status() != WL_CONNECTED) {
-  delay(1000);
-  Serial.print(".");
+  static long millisSec = millis();
+
+  if (millis() - millisSec > 60000) { // time interval is 1 minute
+    millisSec = millis();
+    senddata(0);
+
+    senddata(1);
   }
-  
-  Serial.println("");
-  Serial.println("Connected");
-  Serial.println("");  
-}//end connect
-
-void sendTeperatureTS(float temp)
-{  
-   WiFiClient client;
-  
-   if (client.connect(server, 80)) { // use ip 184.106.153.149 or api.thingspeak.com
-   Serial.println("WiFi Client connected ");
-   
-   String postStr = apiKey;
-   postStr += "&field1=";
-   postStr += String(temp);
-   postStr += "\r\n\r\n";
-   
-   client.print("POST /update HTTP/1.1\n");
-   client.print("Host: api.thingspeak.com\n");
-   client.print("Connection: close\n");
-   client.print("X-THINGSPEAKAPIKEY: " + apiKey + "\n");
-   client.print("Content-Type: application/x-www-form-urlencoded\n");
-   client.print("Content-Length: ");
-   client.print(postStr.length());
-   client.print("\n\n");
-   client.print(postStr);
-   delay(1000);
-   
-   }//end if
-   sent++;
- client.stop();
-}//end send
+}
