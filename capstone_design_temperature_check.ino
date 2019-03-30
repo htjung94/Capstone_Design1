@@ -2,13 +2,14 @@
 #include <ESP8266WiFiMulti.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include "configTemp.h"
 #define ONE_WIRE_BUS D4
 // to be changed
 // the number that you connect with ds18b20
 // the number can be activated is case by case
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-String apiKey = "GAOH8SIZQTR1MWC8"; // to be changed
+
 ESP8266WiFiMulti WiFiMulti;
 
 void setup() {
@@ -18,7 +19,7 @@ void setup() {
   // to be changed
   // We start by connecting to a WiFi network
   // Wifi name and the password
-  WiFiMulti.addAP("SK_WiFi76A1", "1402000968");
+  WiFiMulti.addAP(wifiName, passwd);
 
   Serial.println();
   Serial.println();
@@ -38,7 +39,7 @@ void setup() {
   Serial.println("Dallas Temperature");
   sensors.begin();
 }
-  
+
 void senddata(int flag) {//implementing double connection in loop function was error
   WiFiClient client;
   sensors.requestTemperatures();
@@ -65,7 +66,7 @@ void senddata(int flag) {//implementing double connection in loop function was e
     return;
   }
   if(flag==1) {
-    host = "http://18.219.233.123";// public ip of your server
+     host = "http://18.219.233.123";// public ip of your server
   }
   client.print(String("GET ") + url + " HTTP/1.1\r\n" +
                "Host: " + host + "\r\n" +
